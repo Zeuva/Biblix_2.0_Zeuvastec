@@ -92,15 +92,36 @@ function clearMultiTimer() {
   if (Multi.timerHandle) { clearInterval(Multi.timerHandle); Multi.timerHandle = null; }
 }
 
+function updateTimerDOM() {
+  const numEl = document.querySelector('#multi-timer-num');
+  const fgEl = document.querySelector('#multi-timer-fg');
+  const ringEl = document.querySelector('#multi-timer-ring');
+  if (numEl) numEl.textContent = Math.max(0, Multi.timeLeft);
+  if (fgEl) {
+    const pct = Math.max(0, Multi.timeLeft / QUESTION_TIME);
+    const r = 19, c = 2 * Math.PI * r;
+    fgEl.style.strokeDashoffset = String(c * (1 - pct));
+    const urgent = Multi.timeLeft <= 5;
+    fgEl.style.stroke = urgent ? 'var(--wine-bright)' : 'var(--gold-bright)';
+    if (ringEl) {
+      const numInside = ringEl.querySelector('.num');
+      if (numInside) numInside.style.color = urgent ? 'var(--wine-bright)' : 'var(--parchment)';
+    }
+  }
+}
+
 function startLocalTimer(onTick, onDone) {
   clearMultiTimer();
   Multi.timeLeft = QUESTION_TIME;
+  updateTimerDOM();
   Multi.timerHandle = setInterval(() => {
     Multi.timeLeft -= 1;
-    onTick();
+    updateTimerDOM();
+    if (typeof onTick === 'function') onTick();
     if (Multi.timeLeft <= 0) { clearMultiTimer(); onDone(); }
   }, 1000);
 }
+
 
 // ================= ANFITRIÃO (HOST) =================
 
@@ -178,6 +199,41 @@ function hostHandleMessage(conn, msg) {
   }
 }
 
+
+function updatePlayersListDOM() {
+  const container = document.getElementById('multi-players-live');
+  if (!container) return;
+  const sorted = Multi.players.slice().sort((a,b)=>b.score-a.score);
+  container.innerHTML = sorted.map(p=>`
+      <div class="player-row ${p.id===Multi.myId?'me':''}">
+        <div class="player-name"><span class="dot"></span>${p.isHost?'<span class="crown-mini">👑</span>':''} ${p.name}${p.id===Multi.myId?' (você)':''}</div>
+        <div class="player-score">${p.score} pts</div>
+      </div>`).join('');
+  const countEl = document.getElementById('multi-answered-count');
+  if (countEl && Multi.isHost) countEl.textContent = `${Multi.answeredSet.size}/${Multi.players.length} responderam`;
+}
+
+function updateNextButtonState() {
+  const btn = document.getElementById('multi-next');
+  if (!btn) return;
+  if (Multi.isHost && Multi.chosen !== null) {
+    btn.style.display = 'flex';
+    btn.disabled = false;
+  } else if (Multi.isHost && Multi.answeredSet.size>0) {
+    btn.style.display = 'flex';
+    btn.disabled = Multi.answeredSet.size < 1;
+  } else {
+    // para host, mostrar quando alguém respondeu; para convidado, esconder
+    if (Multi.isHost) { btn.style.display='flex'; } else { btn.style.display='none'; }
+  }
+}
+
+function hostAdvanceManual() {
+  // chamado pelo botão Próximo — mantém dentro do Multiplay
+  clearMultiTimer();
+  hostAdvance();
+}
+
 function hostSubmitAnswer(playerId, index, choice) {
   if (index !== Multi.currentIndex) return; // resposta de uma pergunta que já passou
   if (Multi.answeredSet.has(playerId)) return; // já respondeu
@@ -189,7 +245,8 @@ function hostSubmitAnswer(playerId, index, choice) {
   const who = Multi.players.find((p) => p.id === playerId);
   logLine(`${who ? who.name : playerId} respondeu (${correct ? 'certo' : 'errado'}) · ${Multi.answeredSet.size}/${Multi.players.length}`);
   hostBroadcast({ type: 'PLAYERS', players: Multi.players });
-  if (Multi.isHost) render(); // atualiza placar visível na tela do anfitrião
+  if (Multi.isHost) updatePlayersListDOM();
+  updateNextButtonState();
   if (Multi.answeredSet.size >= Multi.players.length) {
     clearMultiTimer();
     window.setTimeout(() => hostAdvance(), 1100);
@@ -208,7 +265,7 @@ function hostStartQuestion(index) {
   hostBroadcast({ type: 'QUESTION', index });
   logLine(`Pergunta ${index + 1}/${Multi.deck.length}`);
   startLocalTimer(
-    () => { if (Multi.isHost) render(); },
+    () => { /* atualização só do timer, sem render */ updatePlayersListDOM(); },
     () => hostTimeUp()
   );
   render();
@@ -224,6 +281,7 @@ function hostTimeUp() {
 function hostAdvance() {
   const next = Multi.currentIndex + 1;
   if (next >= Multi.deck.length) { hostFinish(); return; }
+  // mantém dentro da sala, sem voltar ao início
   hostStartQuestion(next);
 }
 
@@ -297,13 +355,14 @@ function guestHandleMessage(msg) {
     Multi.finished = msg.finished;
     render();
   } else if (msg.type === 'PLAYERS') {
-    Multi.players = msg.players; // nunca toca em Multi.chosen — placar apenas
-    render();
+    Multi.players = msg.players;
+    updatePlayersListDOM();
+    updateNextButtonState();
   } else if (msg.type === 'QUESTION') {
     Multi.currentIndex = msg.index;
     Multi.chosen = null;
     Multi.started = true;
-    startLocalTimer(() => render(), () => {});
+    startLocalTimer(() => {}, () => {});
     render();
   } else if (msg.type === 'GAME_OVER') {
     Multi.players = msg.players;
@@ -333,9 +392,11 @@ function submitMultiAnswer(optionIndex) {
   const q = Multi.deck[Multi.currentIndex];
   if (!q) return;
   const correct = optionIndex === q.answer;
-  Multi.chosen = optionIndex; // valor local, definitivo — nunca sobrescrito depois
+  Multi.chosen = optionIndex;
   if (correct) Sound.correct(); else Sound.wrong();
-  render();
+  // atualização estável sem piscar
+  if (typeof updateMultiFeedback === 'function') updateMultiFeedback();
+  else if (typeof render === 'function') render();
   if (Multi.isHost) {
     hostSubmitAnswer(Multi.myId, Multi.currentIndex, optionIndex);
   } else if (Multi.conn) {

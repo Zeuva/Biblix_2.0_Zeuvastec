@@ -1,13 +1,15 @@
 /* ============================================================
-   BIBLIX — modo Solo.
+   BIBLIX — modo Solo. FIX: sem piscar.
+   Preserva textos, layout, cores e estilo.
    ============================================================ */
 
 const SoloState = {
   deck: [],
   index: 0,
   score: 0,
-  chosen: null, // índice da opção escolhida na pergunta atual (null = ainda não respondeu)
-  finished: false
+  chosen: null,
+  finished: false,
+  _lastRenderedId: null
 };
 
 function startSolo() {
@@ -16,6 +18,7 @@ function startSolo() {
   SoloState.score = 0;
   SoloState.chosen = null;
   SoloState.finished = false;
+  SoloState._lastRenderedId = null;
   setScreen('solo');
 }
 
@@ -27,7 +30,8 @@ function answerSolo(optionIndex) {
   const correct = optionIndex === q.answer;
   SoloState.chosen = optionIndex;
   if (correct) { SoloState.score += 1; Sound.correct(); } else { Sound.wrong(); }
-  render();
+  // atualização estável sem recriar a página inteira
+  updateSoloFeedback();
   window.setTimeout(() => {
     if (SoloState.index + 1 >= SoloState.deck.length) {
       SoloState.finished = true;
@@ -39,38 +43,70 @@ function answerSolo(optionIndex) {
       SoloState.chosen = null;
       render();
     }
-  }, 1000);
+  }, 1100);
 }
 
 function renderSolo() {
   if (SoloState.finished) return renderSoloResult();
   const q = currentSoloQuestion();
   const total = SoloState.deck.length;
-  root.innerHTML = `
-    <div class="app">
-      ${renderHeader('solo')}
-      <div class="game-status">
-        <span>Pergunta <b>${SoloState.index + 1}</b> / ${total} · ${deckLabel(App.deckId)}</span>
-        <span>Pontos: <b>${SoloState.score}</b></span>
-      </div>
-      <div class="progress"><i style="width:${((SoloState.index) / total) * 100}%"></i></div>
+  const needsFullRebuild = !document.querySelector('[data-screen="solo"]') || SoloState._lastRenderedId !== q.id;
 
-      <div class="card unfurl" id="solo-card">
-        <div class="q-meta"><span>${q.group} · #${String(q.id).padStart(3, '0')}</span><span>${deckLabel(App.deckId)} · ${total}Q</span></div>
-        <div class="q-text">${q.q}</div>
-        <div class="options">
-          ${q.options.map((opt, i) => optionHTML(q, i, SoloState.chosen)).join('')}
+  if (needsFullRebuild) {
+    SoloState._lastRenderedId = q.id;
+    root.innerHTML = `
+      <div class="app" data-screen="solo" data-qid="${q.id}">
+        ${renderHeader('solo')}
+        <div class="game-status">
+          <span>Pergunta <b id="solo-q-num">${SoloState.index + 1}</b> / ${total} · <span id="solo-deck-label">${deckLabel(App.deckId)}</span></span>
+          <span>Pontos: <b id="solo-score">${SoloState.score}</b></span>
         </div>
-        ${SoloState.chosen !== null ? feedbackHTML(SoloState.chosen === q.answer, q) : ''}
+        <div class="progress"><i id="solo-progress" style="width:${(SoloState.index / total) * 100}%"></i></div>
+
+        <div class="card unfurl" id="solo-card">
+          <div class="q-meta"><span id="solo-q-meta">${q.group} · #${String(q.id).padStart(3,'0')}</span><span>${deckLabel(App.deckId)} · ${total}Q</span></div>
+          <div class="q-text" id="solo-q-text">${q.q}</div>
+          <div class="options" id="solo-options">
+            ${q.options.map((opt,i)=>optionHTML(q,i,null)).join('')}
+          </div>
+          <div id="solo-feedback"></div>
+        </div>
       </div>
-    </div>
-  `;
-  wireHeader();
-  if (SoloState.chosen === null) {
-    root.querySelectorAll('.option').forEach((btn) => {
-      btn.addEventListener('click', () => answerSolo(Number(btn.dataset.i)));
+    `;
+    wireHeader();
+    root.querySelectorAll('#solo-options .option').forEach((btn)=>{
+      btn.addEventListener('click',()=>answerSolo(Number(btn.dataset.i)));
     });
+  } else {
+    // atualização leve se permaneceu na mesma pergunta (ex: pontuação mudou antes)
+    const numEl = document.getElementById('solo-q-num');
+    if (numEl) numEl.textContent = SoloState.index + 1;
+    const scoreEl = document.getElementById('solo-score');
+    if (scoreEl) scoreEl.textContent = SoloState.score;
   }
+}
+
+function updateSoloFeedback(){
+  const q = currentSoloQuestion();
+  const options = document.querySelectorAll('#solo-options .option');
+  options.forEach((btn)=>{
+    const i = Number(btn.dataset.i);
+    btn.disabled = true;
+    btn.classList.remove('correct','wrong');
+    let check = btn.querySelector('.option-check');
+    if (check) check.remove();
+    if (i === q.answer) {
+      btn.classList.add('correct');
+      btn.insertAdjacentHTML('beforeend','<span class="option-check">✓</span>');
+    } else if (i === SoloState.chosen) {
+      btn.classList.add('wrong');
+      btn.insertAdjacentHTML('beforeend','<span class="option-check">✗</span>');
+    }
+  });
+  const fb = document.getElementById('solo-feedback');
+  if (fb) fb.innerHTML = feedbackHTML(SoloState.chosen === q.answer, q);
+  const scoreEl = document.getElementById('solo-score');
+  if (scoreEl) scoreEl.textContent = SoloState.score;
 }
 
 function optionHTML(q, i, chosen) {
@@ -115,6 +151,7 @@ function renderSoloResult() {
       </div>
     </div>
   `;
+  wireHeader();
   document.getElementById('play-again').addEventListener('click', () => startSolo());
   document.getElementById('back-home').addEventListener('click', () => setScreen('home'));
   document.getElementById('share-result').addEventListener('click', () => {
