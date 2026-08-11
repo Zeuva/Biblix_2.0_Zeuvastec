@@ -28,7 +28,7 @@ function renderDeckSeals(onSelect) {
   return `<div class="deck-row" role="tablist" aria-label="Selecionar cartão">
     ${items.map((d) => `
       <button class="seal ${App.deckId === d.id ? 'active' : ''}" role="tab" aria-selected="${App.deckId === d.id}" data-deck="${d.id}">
-        <span class="seal-mark">${d.id === 'ALL' ? '✦' : d.id.replace('C', '')}</span>
+        <span class="seal-mark">${d.id === 'ALL' ? '●' : d.id.replace('C', '')}</span>
         <span class="seal-label">${d.id === 'ALL' ? 'Todos' : d.id}</span>
       </button>`).join('')}
   </div>`;
@@ -49,7 +49,7 @@ function renderHeader(activeMode) {
     <div class="brand">
       <div class="brand-seal">B</div>
       <div>
-        <div class="brand-name">BIBLIX <b>Trivia</b></div>
+        <div class="brand-name">BIBLIX <b>Zeuvastec</b></div>
         <div class="brand-tag">Perguntas bíblicas</div>
       </div>
     </div>
@@ -81,7 +81,7 @@ function renderHome() {
       ${renderHeader('solo')}
       <section class="hero">
         <div class="hero-badge">📜 <b>${QUESTIONS.length}</b> perguntas · ${DECKS.length} cartões · sem repetir conteúdo original</div>
-        <h1>Conhecimento bíblico, <br>à sua prova.</h1>
+        <h1>Biblix Zeuvastec <br>Technology</h1>
         <p>Responda sozinho no seu ritmo, ou desafie amigos em tempo real. Escolha um cartão específico ou jogue com todas as perguntas.</p>
         <div class="hero-actions">
           <button class="btn btn-primary" id="start-solo">▶ Jogar Solo · ${count}Q</button>
@@ -100,7 +100,7 @@ function renderHome() {
         <div class="feature"><h3>Efeitos</h3><p>Animações de acerto/erro e confete ao concluir um cartão.</p></div>
       </div>
 
-      <p class="footer-note">BIBLIX Trivia · ${QUESTIONS.length} perguntas · ${DECKS.length} cartões · conteúdo original preservado</p>
+      <p class="footer-note">BIBLIX Zeuvastec · ${QUESTIONS.length} perguntas · ${DECKS.length} cartões · conteúdo original preservado</p>
     </div>
   `;
   wireHeader();

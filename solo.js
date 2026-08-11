@@ -118,7 +118,7 @@ function renderSoloResult() {
   document.getElementById('play-again').addEventListener('click', () => startSolo());
   document.getElementById('back-home').addEventListener('click', () => setScreen('home'));
   document.getElementById('share-result').addEventListener('click', () => {
-    const text = `🏆 BIBLIX Trivia — Fiz ${SoloState.score}/${total} pontos (${pct}%) no cartão ${deckLabel(App.deckId)}!`;
+    const text = `🏆 BIBLIX Zeuvastec — Fiz ${SoloState.score}/${total} pontos (${pct}%) no cartão ${deckLabel(App.deckId)}!`;
     if (navigator.share) navigator.share({ text }).catch(() => {});
     else { navigator.clipboard?.writeText(text); toast('Resultado copiado!'); }
   });
