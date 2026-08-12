@@ -1,4 +1,4 @@
-/* BIBLIX — modo Solo. FIX sem piscar - preserva textos/design */
+/* BIBLIX — modo Solo FIX sem piscar */
 const SoloState = { deck:[], index:0, score:0, chosen:null, finished:false, _lastRenderedId:null };
 function startSolo(){ SoloState.deck=shuffle(questionsForDeck(App.deckId)); SoloState.index=0; SoloState.score=0; SoloState.chosen=null; SoloState.finished=false; SoloState._lastRenderedId=null; setScreen('solo'); }
 function currentSoloQuestion(){ return SoloState.deck[SoloState.index]; }

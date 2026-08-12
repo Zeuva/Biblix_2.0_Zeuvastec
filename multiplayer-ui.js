@@ -20,53 +20,38 @@ function renderMultiLobby() {
   wireHeader(); wireDeckSeals(renderMultiLobby);
   const nameInput = document.getElementById('player-name');
   nameInput.addEventListener('input', () => { Multi.myName = nameInput.value; localStorage.setItem('biblix2-name', Multi.myName); });
-  document.getElementById('create-room').addEventListener('click', () => { Multi.myName = nameInput.value; Multi.pendingAction = 'create'; hostCreateRoom(); });
-  document.getElementById('join-room').addEventListener('click', () => { Multi.myName = nameInput.value; Multi.pendingAction = 'join'; const code = document.getElementById('room-code').value; guestJoinRoom(code); });
+  document.getElementById('create-room').addEventListener('click', () => { Multi.myName = nameInput.value; hostCreateRoom(); });
+  document.getElementById('join-room').addEventListener('click', () => { Multi.myName = nameInput.value; const code = document.getElementById('room-code').value; guestJoinRoom(code); });
 }
 function renderMultiRoom(){ if(Multi.error && !Multi.started) return renderMultiError(); if(Multi.finished) return renderMultiResult(); if(!Multi.started) return renderMultiWaiting(); return renderMultiQuestion(); }
 function renderMultiError(){ root.innerHTML=`<div class="app">${renderHeader('multi')}<div class="panel" style="border-color:var(--wine-bright);text-align:center;padding:34px 22px"><div style="font-size:34px;margin-bottom:10px">⚠</div><h3 style="color:var(--wine-bright)">Algo interrompeu a sala</h3><p style="color:var(--parchment-dim);font-size:14px;margin:8px 0 20px">${Multi.error}</p><button class="btn btn-primary" id="back-lobby">← Voltar</button></div></div>`; document.getElementById('back-lobby').addEventListener('click',()=>{ resetMultiKeepIdentity(); setScreen('multi-lobby'); }); }
-
-function renderMultiWaiting() {
-  root.innerHTML = `
+function renderPlayersList(highlightMe){ const sorted=Multi.players.slice().sort((a,b)=>b.score-a.score); return `<div class="players-list">${sorted.map((p)=>`<div class="player-row ${highlightMe && p.id===Multi.myId?'me':''}"><div class="player-name"><span class="dot"></span>${p.isHost?'<span class="crown-mini">👑</span>':''} ${p.name}${p.id===Multi.myId?' (você)':''}</div><div class="player-score">${p.score} pts</div></div>`).join('')}</div>`; }
+function renderMultiWaiting(){
+  root.innerHTML=`
     <div class="app">
       ${renderHeader('multi')}
-      <div class="panel" style="text-align:center">
-        <div class="decks-label">Código da sala</div>
-        <div style="font-family:'Spectral',serif;font-size:40px;font-weight:700;letter-spacing:.12em;color:var(--gold-bright);margin:6px 0 4px">${Multi.roomCode}</div>
-        <p style="font-size:13px;color:var(--parchment-dim);margin:0 0 18px">Compartilhe esse código para outras pessoas entrarem · Cartão ${deckLabel(App.deckId)} · ${Multi.deck.length}Q</p>
-      </div>
-      <div class="panel">
-        <h3>Jogadores na sala (${Multi.players.length})</h3>
-        ${renderPlayersList(true)}
-      </div>
-      ${Multi.isHost ? `<button class="btn btn-primary btn-block" id="start-game" style="margin-top:18px">▶ Iniciar partida</button>` : `<div class="panel" style="text-align:center;color:var(--parchment-dim);font-size:14px">Aguardando o anfitrião iniciar a partida…</div>`}
-      <div class="panel"><h3>Registro da sala</h3><div class="log-box">${Multi.log.length ? Multi.log.map((l) => `<div>${l}</div>`).join('') : 'Nenhum evento ainda…'}</div></div>
+      <div class="panel" style="text-align:center"><div class="decks-label">Código da sala</div><div style="font-family:'Spectral',serif;font-size:40px;font-weight:700;letter-spacing:.12em;color:var(--gold-bright);margin:6px 0 4px">${Multi.roomCode}</div><p style="font-size:13px;color:var(--parchment-dim);margin:0 0 18px">Compartilhe esse código para outras pessoas entrarem · Cartão ${deckLabel(App.deckId)} · ${Multi.deck.length}Q</p></div>
+      <div class="panel"><h3>Jogadores na sala (${Multi.players.length})</h3>${renderPlayersList(true)}</div>
+      ${Multi.isHost?`<button class="btn btn-primary btn-block" id="start-game" style="margin-top:18px">▶ Iniciar partida</button>`:`<div class="panel" style="text-align:center;color:var(--parchment-dim);font-size:14px">Aguardando o anfitrião iniciar a partida…</div>`}
+      <div class="panel"><h3>Registro da sala</h3><div class="log-box">${Multi.log.length?Multi.log.map(l=>`<div>${l}</div>`).join(''):'Nenhum evento ainda…'}</div></div>
       <button class="btn btn-ghost btn-block" id="leave-room" style="margin-top:14px">Sair da sala</button>
     </div>
   `;
   wireHeader();
-  if (Multi.isHost) document.getElementById('start-game').addEventListener('click', () => hostStartGame());
-  document.getElementById('leave-room').addEventListener('click', () => (Multi.isHost ? hostLeave() : guestLeave()));
+  const btn=document.getElementById('start-game');
+  if(btn) btn.addEventListener('click',()=>{ console.log('Iniciar partida clicado'); hostStartGame(); });
+  document.getElementById('leave-room').addEventListener('click',()=>(Multi.isHost?hostLeave():guestLeave()));
 }
-
-function renderTimerRing() {
-  const pct = Math.max(0, Multi.timeLeft / QUESTION_TIME);
-  const r = 19, c = 2 * Math.PI * r;
-  const urgent = Multi.timeLeft <= 5;
-  return `<div class="timer-ring" id="multi-timer-ring-inner"><svg width="46" height="46"><circle class="bg" cx="23" cy="23" r="${r}"></circle><circle class="fg" id="multi-timer-fg" cx="23" cy="23" r="${r}" style="stroke:${urgent ? 'var(--wine-bright)' : 'var(--gold-bright)'};stroke-dasharray:${c};stroke-dashoffset:${c * (1 - pct)}"></circle></svg><div class="num" id="multi-timer-num" style="color:${urgent ? 'var(--wine-bright)' : 'var(--parchment)'}">${Math.max(0, Multi.timeLeft)}</div></div>`;
-}
-
-function renderMultiQuestion() {
-  const q = Multi.deck[Multi.currentIndex];
-  const total = Multi.deck.length;
-  const existing = document.querySelector('[data-screen="multi-question"]');
-  const needsFull = !existing || Number(existing.dataset.qid) !== q.id;
-  if (needsFull) {
-    root.innerHTML = `
+function renderTimerRing(){ const pct=Math.max(0,Multi.timeLeft/QUESTION_TIME); const r=19,c=2*Math.PI*r; const urgent=Multi.timeLeft<=5; return `<div class="timer-ring" id="multi-timer-ring-inner"><svg width="46" height="46"><circle class="bg" cx="23" cy="23" r="${r}"></circle><circle class="fg" id="multi-timer-fg" cx="23" cy="23" r="${r}" style="stroke:${urgent?'var(--wine-bright)':'var(--gold-bright)'};stroke-dasharray:${c};stroke-dashoffset:${c*(1-pct)}"></circle></svg><div class="num" id="multi-timer-num" style="color:${urgent?'var(--wine-bright)':'var(--parchment)'}">${Math.max(0,Multi.timeLeft)}</div></div>`; }
+function renderMultiQuestion(){
+  const q=Multi.deck[Multi.currentIndex]; const total=Multi.deck.length;
+  const existing=document.querySelector('[data-screen="multi-question"]'); const needsFull=!existing||Number(existing.dataset.qid)!==q.id;
+  if(needsFull){
+    root.innerHTML=`
     <div class="app" data-screen="multi-question" data-qid="${q.id}">
       ${renderHeader('multi')}
-      <div class="game-status"><span>Pergunta <b id="multi-q-pos">${Multi.currentIndex + 1}</b> / ${total} · Sala ${Multi.roomCode}</span><div id="multi-timer-ring">${renderTimerRing()}</div></div>
-      <div class="progress"><i id="multi-progress" style="width:${(Multi.currentIndex / total) * 100}%"></i></div>
+      <div class="game-status"><span>Pergunta <b id="multi-q-pos">${Multi.currentIndex+1}</b> / ${total} · Sala ${Multi.roomCode}</span><div id="multi-timer-ring">${renderTimerRing()}</div></div>
+      <div class="progress"><i id="multi-progress" style="width:${(Multi.currentIndex/total)*100}%"></i></div>
       <div class="card unfurl" id="multi-card"><div class="q-meta"><span>${q.group} · #${String(q.id).padStart(3,'0')}</span><span>${deckLabel(App.deckId)}</span></div><div class="q-text" id="multi-q-text">${q.q}</div><div class="options" id="multi-options">${q.options.map((opt,i)=>optionHTML(q,i,Multi.chosen)).join('')}</div><div id="multi-feedback">${Multi.chosen!==null?`${feedbackHTML(Multi.chosen===q.answer,q)}<div class="feedback-note" id="multi-answered-count">${Multi.isHost?`${Multi.answeredSet.size}/${Multi.players.length} responderam`:'Aguardando os outros jogadores…'}</div>`:''}</div><div style="margin-top:16px;display:flex;gap:10px"><button class="btn btn-primary" id="multi-next" style="${Multi.chosen!==null||(Multi.isHost&&Multi.answeredSet.size>0)?'display:flex':'display:none'}">Próximo →</button></div></div>
       <div class="panel"><h3>Placar ao vivo</h3><div id="multi-players-live">${renderPlayersList(true)}</div></div>
     </div>`;
@@ -80,7 +65,6 @@ function renderMultiQuestion() {
     if(Multi.chosen!==null){ updateMultiFeedback(); }
   }
 }
-
 function updateMultiFeedback(){
   const q=Multi.deck[Multi.currentIndex];
   document.querySelectorAll('#multi-options .option').forEach(btn=>{
@@ -91,40 +75,20 @@ function updateMultiFeedback(){
   const fb=document.getElementById('multi-feedback'); if(fb) fb.innerHTML=`${feedbackHTML(Multi.chosen===q.answer,q)}<div class="feedback-note" id="multi-answered-count">${Multi.isHost?`${Multi.answeredSet.size}/${Multi.players.length} responderam`:'Aguardando os outros jogadores…'}</div>`;
   updateNextButtonState();
 }
-
-function renderPlayersList(highlightMe) {
-  const sorted = Multi.players.slice().sort((a, b) => b.score - a.score);
-  return `<div class="players-list">${sorted.map((p) => `<div class="player-row ${highlightMe && p.id === Multi.myId ? 'me' : ''}"><div class="player-name"><span class="dot"></span>${p.isHost ? '<span class="crown-mini">👑</span>' : ''} ${p.name}${p.id === Multi.myId ? ' (você)' : ''}</div><div class="player-score">${p.score} pts</div></div>`).join('')}</div>`;
-}
-
-function renderMultiResult() {
-  const sorted = Multi.players.slice().sort((a, b) => b.score - a.score);
-  const me = Multi.players.find((p) => p.id === Multi.myId);
-  const total = Multi.deck.length;
-  root.innerHTML = `
+function renderMultiResult(){
+  const sorted=Multi.players.slice().sort((a,b)=>b.score-a.score);
+  const me=Multi.players.find(p=>p.id===Multi.myId); const total=Multi.deck.length;
+  root.innerHTML=`
     <div class="app">
       ${renderHeader('multi')}
-      <div class="modal-backdrop">
-        <div class="modal" style="max-width:440px">
-          <div class="crown">🏆</div>
-          <h2>Partida concluída!</h2>
-          <div class="score-big">${me ? me.score : 0} / ${total}</div>
-          <div class="score-sub">Sua pontuação final · ${deckLabel(App.deckId)}</div>
-          <div class="players-list" style="text-align:left;margin-bottom:22px">
-            ${sorted.map((p, i) => `<div class="player-row ${p.id === Multi.myId ? 'me' : ''}"><div class="player-name">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`} ${p.name}${p.id === Multi.myId ? ' (você)' : ''}</div><div class="player-score">${p.score} pts</div></div>`).join('')}
-          </div>
-          <div class="modal-actions">
-            ${Multi.isHost ? `<button class="btn btn-primary btn-block" id="next-deck">▶️ Próximo Cartão</button>` : `<div class="panel" style="text-align:center;color:var(--parchment-dim);font-size:13px">Aguardando anfitrião escolher próximo cartão…</div>`}
-            <button class="btn btn-secondary btn-block" id="back-home2">🏠 Voltar ao início</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+      <div class="modal-backdrop"><div class="modal" style="max-width:440px"><div class="crown">🏆</div><h2>Partida concluída!</h2><div class="score-big">${me?me.score:0} / ${total}</div><div class="score-sub">Sua pontuação final · ${deckLabel(App.deckId)}</div>
+      <div class="players-list" style="text-align:left;margin-bottom:22px">${sorted.map((p,i)=>`<div class="player-row ${p.id===Multi.myId?'me':''}"><div class="player-name">${i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}º`} ${p.name}${p.id===Multi.myId?' (você)':''}</div><div class="player-score">${p.score} pts</div></div>`).join('')}</div>
+      <div class="modal-actions">
+        ${Multi.isHost?`<button class="btn btn-primary btn-block" id="next-deck">▶️ Próximo Cartão</button>`: `<div class="panel" style="text-align:center;color:var(--parchment-dim);font-size:13px">Aguardando anfitrião escolher próximo cartão…</div>`}
+        <button class="btn btn-secondary btn-block" id="back-home2">🏠 Voltar ao início</button>
+      </div></div></div>
+    </div>`;
   const nextBtn=document.getElementById('next-deck');
-  if(nextBtn) nextBtn.addEventListener('click',()=>{ if(Multi.isHost) hostNextDeck(); });
-  document.getElementById('back-home2').addEventListener('click', () => {
-    if (Multi.isHost) hostLeave(); else guestLeave();
-    setScreen('home');
-  });
+  if(nextBtn) nextBtn.addEventListener('click',()=>{ console.log('Próximo Cartão clicado'); if(Multi.isHost) hostNextDeck(); });
+  document.getElementById('back-home2').addEventListener('click',()=>{ if(Multi.isHost) hostLeave(); else guestLeave(); setScreen('home'); });
 }
