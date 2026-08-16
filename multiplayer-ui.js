@@ -137,103 +137,84 @@ function renderMultiWaiting() {
   document.getElementById('leave-room').addEventListener('click', () => (Multi.isHost ? hostLeave() : guestLeave()));
 }
 
-
-function renderMultiQuestion() {
-  const q = Multi.deck[Multi.currentIndex];
-  const total = Multi.deck.length;
-  const existing = document.querySelector('[data-screen="multi-question"]');
-  const needsFull = !existing || Number(existing.dataset.qid) !== q.id;
-
-  if (needsFull) {
-    root.innerHTML = `
-    <div class="app" data-screen="multi-question" data-qid="${q.id}">
-      ${renderHeader('multi')}
-      <div class="game-status">
-        <span>Pergunta <b id="multi-q-pos">${Multi.currentIndex + 1}</b> / ${total} · Sala ${Multi.roomCode}</span>
-        <div id="multi-timer-ring">${renderTimerRing()}</div>
-      </div>
-      <div class="progress"><i id="multi-progress" style="width:${(Multi.currentIndex / total) * 100}%"></i></div>
-
-      <div class="card unfurl" id="multi-card">
-        <div class="q-meta"><span>${q.group} · #${String(q.id).padStart(3, '0')}</span><span>${deckLabel(App.deckId)}</span></div>
-        <div class="q-text" id="multi-q-text">${q.q}</div>
-        <div class="options" id="multi-options">
-          ${q.options.map((opt, i) => optionHTML(q, i, Multi.chosen)).join('')}
-        </div>
-        <div id="multi-feedback">${Multi.chosen !== null ? `${feedbackHTML(Multi.chosen === q.answer, q)}<div class="feedback-note" id="multi-answered-count">${Multi.isHost?`${Multi.answeredSet.size}/${Multi.players.length} responderam`:'Aguardando os outros jogadores…'}</div>` : ''}</div>
-        <div style="margin-top:16px;display:flex;gap:10px">
-          <button class="btn btn-primary" id="multi-next" style="${Multi.chosen!==null || (Multi.isHost && Multi.answeredSet.size>0) ? 'display:flex' : 'display:none'}">Próximo →</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h3>Placar ao vivo</h3>
-        <div id="multi-players-live">${renderPlayersList(true)}</div>
-      </div>
-    </div>
-  `;
-    wireHeader();
-    const nextBtn = document.getElementById('multi-next');
-    if (nextBtn) {
-      nextBtn.addEventListener('click', () => {
-        if (Multi.isHost) hostAdvanceManual();
-      });
-    }
-    if (Multi.chosen === null) {
-      root.querySelectorAll('#multi-options .option').forEach((btn) => {
-        btn.addEventListener('click', () => submitMultiAnswer(Number(btn.dataset.i)));
-      });
-    }
-  } else {
-    // atualização leve sem recriar cartão - evita piscar
-    const posEl = document.getElementById('multi-q-pos');
-    if (posEl) posEl.textContent = Multi.currentIndex+1;
-    const prog = document.getElementById('multi-progress');
-    if (prog) prog.style.width = (Multi.currentIndex/total*100)+'%';
-    updatePlayersListDOM();
-    updateNextButtonState();
-    if (Multi.chosen !== null) {
-      updateMultiFeedback();
-    }
-  }
-}
-
-function updateMultiFeedback(){
-  const q = Multi.deck[Multi.currentIndex];
-  const options = document.querySelectorAll('#multi-options .option');
-  options.forEach(btn=>{
-    const i=Number(btn.dataset.i);
-    btn.disabled=true;
-    btn.classList.remove('correct','wrong');
-    const old=btn.querySelector('.option-check');
-    if (old) old.remove();
-    if (i===q.answer){ btn.classList.add('correct'); btn.insertAdjacentHTML('beforeend','<span class="option-check">✓</span>'); }
-    else if (i===Multi.chosen){ btn.classList.add('wrong'); btn.insertAdjacentHTML('beforeend','<span class="option-check">✗</span>'); }
-  });
-  const fb = document.getElementById('multi-feedback');
-  if (fb) {
-    fb.innerHTML = `${feedbackHTML(Multi.chosen===q.answer,q)}<div class="feedback-note" id="multi-answered-count">${Multi.isHost?`${Multi.answeredSet.size}/${Multi.players.length} responderam`:'Aguardando os outros jogadores…'}</div>`;
-  }
-  updateNextButtonState();
-}
-
 function renderTimerRing() {
   const pct = Math.max(0, Multi.timeLeft / QUESTION_TIME);
   const r = 19, c = 2 * Math.PI * r;
   const urgent = Multi.timeLeft <= 5;
-  return `<div class="timer-ring" id="multi-timer-ring-inner">
+  return `<div class="timer-ring">
     <svg width="46" height="46"><circle class="bg" cx="23" cy="23" r="${r}"></circle>
-      <circle class="fg" id="multi-timer-fg" cx="23" cy="23" r="${r}" style="stroke:${urgent ? 'var(--wine-bright)' : 'var(--gold-bright)'};stroke-dasharray:${c};stroke-dashoffset:${c * (1 - pct)}"></circle>
+      <circle class="fg" cx="23" cy="23" r="${r}" style="stroke:${urgent ? 'var(--wine-bright)' : 'var(--gold-bright)'};stroke-dasharray:${c};stroke-dashoffset:${c * (1 - pct)}"></circle>
     </svg>
-    <div class="num" id="multi-timer-num" style="color:${urgent ? 'var(--wine-bright)' : 'var(--parchment)'}">${Math.max(0, Multi.timeLeft)}</div>
+    <div class="num" style="color:${urgent ? 'var(--wine-bright)' : 'var(--parchment)'}">${Math.max(0, Multi.timeLeft)}</div>
   </div>`;
 }
 
+// Atualiza só o cronômetro no DOM (sem recriar a pergunta) — evita o "piscar"
+// que acontecia quando a tela inteira era redesenhada a cada segundo.
+function updateTimerDOM() {
+  const ring = document.querySelector('.timer-ring');
+  if (!ring) return;
+  const pct = Math.max(0, Multi.timeLeft / QUESTION_TIME);
+  const r = 19, c = 2 * Math.PI * r;
+  const urgent = Multi.timeLeft <= 5;
+  const fg = ring.querySelector('.fg');
+  const num = ring.querySelector('.num');
+  if (fg) {
+    fg.style.stroke = urgent ? 'var(--wine-bright)' : 'var(--gold-bright)';
+    fg.style.strokeDashoffset = c * (1 - pct);
+  }
+  if (num) {
+    num.style.color = urgent ? 'var(--wine-bright)' : 'var(--parchment)';
+    num.textContent = Math.max(0, Multi.timeLeft);
+  }
+}
+
+let lastUnfurledIndex = -1;
+
+function renderMultiQuestion() {
+  const q = Multi.deck[Multi.currentIndex];
+  const total = Multi.deck.length;
+  const isNewQuestion = lastUnfurledIndex !== Multi.currentIndex;
+  lastUnfurledIndex = Multi.currentIndex;
+  root.innerHTML = `
+    <div class="app">
+      ${renderHeader('multi')}
+      <div class="game-status">
+        <span>Pergunta <b>${Multi.currentIndex + 1}</b> / ${total} · Sala ${Multi.roomCode}</span>
+        ${renderTimerRing()}
+      </div>
+      <div class="progress"><i style="width:${(Multi.currentIndex / total) * 100}%"></i></div>
+
+      <div class="card ${isNewQuestion ? 'unfurl' : ''}">
+        <div class="q-meta"><span>${q.group} · #${String(q.id).padStart(3, '0')}</span><span>${deckLabel(App.deckId)}</span></div>
+        <div class="q-text">${q.q}</div>
+        <div class="options">
+          ${q.options.map((opt, i) => optionHTML(q, i, Multi.chosen)).join('')}
+        </div>
+        ${Multi.chosen !== null
+          ? `${feedbackHTML(Multi.chosen === q.answer, q)}<div class="feedback-note">Aguardando os outros jogadores…</div>`
+          : ''}
+      </div>
+
+      <div class="panel">
+        <h3>Placar ao vivo</h3>
+        ${renderPlayersList(true)}
+      </div>
+    </div>
+  `;
+  wireHeader();
+  if (Multi.chosen === null) {
+    root.querySelectorAll('.option').forEach((btn) => {
+      btn.addEventListener('click', () => submitMultiAnswer(Number(btn.dataset.i)));
+    });
+  }
+}
 
 function renderMultiResult() {
   const sorted = Multi.players.slice().sort((a, b) => b.score - a.score);
   const me = Multi.players.find((p) => p.id === Multi.myId);
   const total = Multi.deck.length;
+  const next = nextDeckId(App.deckId);
   root.innerHTML = `
     <div class="app">
       ${renderHeader('multi')}
@@ -251,12 +232,18 @@ function renderMultiResult() {
               </div>`).join('')}
           </div>
           <div class="modal-actions">
-            <button class="btn btn-primary btn-block" id="back-home2">🏠 Voltar ao início</button>
+            ${Multi.isHost && next ? `<button class="btn btn-primary btn-block" id="next-deck-btn">➜ Próximo cartão · ${next}</button>` : ''}
+            ${Multi.isHost && !next ? `<p style="font-size:12.5px;color:var(--muted);margin:0 0 4px">Este era o último cartão da sequência.</p>` : ''}
+            ${!Multi.isHost ? `<p style="font-size:12.5px;color:var(--muted);margin:0 0 4px">Aguardando o anfitrião escolher o próximo passo…</p>` : ''}
+            <button class="btn ${Multi.isHost && next ? 'btn-secondary' : 'btn-primary'} btn-block" id="back-home2">🏠 Voltar ao início</button>
           </div>
         </div>
       </div>
     </div>
   `;
+  if (Multi.isHost && next) {
+    document.getElementById('next-deck-btn').addEventListener('click', () => hostStartNextDeck());
+  }
   document.getElementById('back-home2').addEventListener('click', () => {
     if (Multi.isHost) hostLeave(); else guestLeave();
     setScreen('home');

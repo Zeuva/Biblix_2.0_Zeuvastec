@@ -23,6 +23,14 @@ function setScreen(screen) { App.screen = screen; render(); }
 
 function deckLabel(deckId) { return deckId === 'ALL' ? 'Todos' : deckId; }
 
+function nextDeckId(currentId) {
+  const order = DECKS.map((d) => d.id);
+  if (currentId === 'ALL') return order[0];
+  const idx = order.indexOf(currentId);
+  if (idx === -1 || idx >= order.length - 1) return null;
+  return order[idx + 1];
+}
+
 function renderDeckSeals(onSelect) {
   const items = [{ id: 'ALL', count: QUESTIONS.length }, ...DECKS];
   return `<div class="deck-row" role="tablist" aria-label="Selecionar cartão">
@@ -47,7 +55,7 @@ function wireDeckSeals(onSelect) {
 function renderHeader(activeMode) {
   return `<header class="header">
     <div class="brand">
-      <div class="brand-seal">B</div>
+      <img class="brand-seal" src="icon-192.png" alt="BIBLIX" />
       <div>
         <div class="brand-name">BIBLIX <b>Zeuvastec</b></div>
         <div class="brand-tag">Perguntas bíblicas</div>

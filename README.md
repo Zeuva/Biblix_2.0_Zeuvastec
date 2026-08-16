@@ -6,7 +6,7 @@ Jogo de perguntas e respostas bíblicas, em português, com modo **Solo** e **Mu
 
 ## Sobre
 
-- **143 perguntas** organizadas em **14 cartões temáticos** (C001 a C016)
+- **234 perguntas** organizadas em **25 cartões temáticos** (C001 a C027, sem C009/C011)
 - Modo **Solo**: jogue no seu ritmo, com progresso e pontuação ao vivo
 - Modo **Multiplayer**: crie uma sala, compartilhe o código com amigos e joguem juntos com placar em tempo real
 - Som e efeitos visuais: feedback sonoro de acerto/erro, animações nas respostas, confete ao concluir um cartão
